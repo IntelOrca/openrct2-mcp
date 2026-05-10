@@ -21,8 +21,8 @@ export function createEvalController(): ControllerDefinition {
                 description: "Evaluates the q query parameter and returns the resulting value.",
                 responseDescription: "Evaluation result",
                 handler: function (request, response) {
-                    var expression = request.query.q;
-                    var result: unknown;
+                    const expression = request.query.q;
+                    let result: unknown;
 
                     if (typeof expression === "undefined") {
                         response.setStatus(400);

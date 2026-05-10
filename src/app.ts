@@ -4,18 +4,9 @@ import { generateOpenApiYaml } from "./http/openapi.js";
 import { HttpRouter } from "./http/router.js";
 import type { Middleware } from "./http/types.js";
 
-function escapeHtml(value: string): string {
-    return value
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-}
-
 function getControllerMethods(controller: ControllerDefinition): string[] {
-    var seen: Record<string, boolean> = {};
-    var methods: string[] = [];
+    const seen: Record<string, boolean> = {};
+    const methods: string[] = [];
 
     controller.routes.forEach(function (route) {
         if (!seen[route.method]) {
@@ -58,14 +49,14 @@ function createSwaggerPage(): string {
             });
           </script>
         </body>
-        </html
+        </html>
     `;
 }
 
 function createRequestLogger(): Middleware {
     return function (request, response, next) {
-        var result = next();
-        var level = response.statusCode >= 500 ? "error" : (response.statusCode >= 400 ? "warn" : "info");
+        const result = next();
+        const level = response.statusCode >= 500 ? "error" : (response.statusCode >= 400 ? "warn" : "info");
 
         console.log(request.method + " " + request.path + " -- " + level);
         return result;
@@ -78,8 +69,8 @@ export interface Application {
 }
 
 export function createApplication(): Application {
-    var router = new HttpRouter();
-    var controllers = getControllers();
+    const router = new HttpRouter();
+    const controllers = getControllers();
 
     router.use("/", createRequestLogger());
     registerControllers(router, controllers);

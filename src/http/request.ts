@@ -3,44 +3,38 @@ import type { HttpMethod, HttpRequest } from "./types.js";
 function safeDecodeURIComponent(value: string): string {
     try {
         return decodeURIComponent(value);
-    } catch (error) {
+    } catch (_error) {
         return value;
     }
 }
 
 function normalizeMethod(method: string): HttpMethod {
-    var normalized = method.toUpperCase();
+    const normalized = method.toUpperCase();
     return normalized === "" ? "GET" : normalized;
 }
 
 export function parseQueryParameters(rawPath: string): Record<string, string> {
-    var query: Record<string, string> = {};
-    var index = rawPath.indexOf("?");
-    var queryString: string;
-    var parts: string[];
-    var i: number;
-    var pair: string[];
-    var key: string;
-    var value: string;
+    const query: Record<string, string> = {};
+    const index = rawPath.indexOf("?");
+    const queryString: string = rawPath.substring(index + 1);
+    const parts = queryString.split("&");
 
     if (index === -1) {
         return query;
     }
 
-    queryString = rawPath.substring(index + 1);
     if (queryString === "") {
         return query;
     }
 
-    parts = queryString.split("&");
-    for (i = 0; i < parts.length; i++) {
-        if (parts[i] === "") {
+    for (const part of parts) {
+        if (part === "") {
             continue;
         }
 
-        pair = parts[i].split("=");
-        key = safeDecodeURIComponent(pair[0] || "");
-        value = safeDecodeURIComponent(pair.length > 1 ? pair.slice(1).join("=") : "");
+        const pair = part.split("=");
+        const key = safeDecodeURIComponent(pair[0] || "");
+        const value = safeDecodeURIComponent(pair.length > 1 ? pair.slice(1).join("=") : "");
         query[key] = value;
     }
 
@@ -48,9 +42,9 @@ export function parseQueryParameters(rawPath: string): Record<string, string> {
 }
 
 export function normalizePath(rawPath: string): string {
-    var withoutQuery = rawPath.split("?")[0] || "/";
-    var decoded = safeDecodeURIComponent(withoutQuery);
-    var normalized = decoded.replace(/\/+$/, "");
+    const withoutQuery = rawPath.split("?")[0] || "/";
+    const decoded = safeDecodeURIComponent(withoutQuery);
+    const normalized = decoded.replace(/\/+$/, "");
 
     if (normalized === "") {
         return "/";
@@ -64,26 +58,20 @@ export function normalizePath(rawPath: string): string {
 }
 
 function parseHeaders(headerLines: string[]): Record<string, string> {
-    var headers: Record<string, string> = {};
-    var i: number;
-    var line: string;
-    var separatorIndex: number;
-    var name: string;
-    var value: string;
+    const headers: Record<string, string> = {};
 
-    for (i = 0; i < headerLines.length; i++) {
-        line = headerLines[i];
+    for (const line of headerLines) {
         if (line === "") {
             continue;
         }
 
-        separatorIndex = line.indexOf(":");
+        const separatorIndex = line.indexOf(":");
         if (separatorIndex === -1) {
             continue;
         }
 
-        name = line.substring(0, separatorIndex).trim().toLowerCase();
-        value = line.substring(separatorIndex + 1).trim();
+        const name = line.substring(0, separatorIndex).trim().toLowerCase();
+        const value = line.substring(separatorIndex + 1).trim();
         headers[name] = value;
     }
 
@@ -91,23 +79,20 @@ function parseHeaders(headerLines: string[]): Record<string, string> {
 }
 
 export function parseHttpRequest(rawRequest: string): HttpRequest {
-    var sections = rawRequest.split("\r\n\r\n");
-    var head = sections[0] || "";
-    var body = sections.slice(1).join("\r\n\r\n");
-    var lines = head.split("\r\n");
-    var requestLine = lines.shift() || "";
-    var parts = requestLine.split(" ");
-    var method: HttpMethod;
-    var rawPath: string;
-    var headers: Record<string, string>;
+    const sections = rawRequest.split("\r\n\r\n");
+    const head = sections[0] || "";
+    const body = sections.slice(1).join("\r\n\r\n");
+    const lines = head.split("\r\n");
+    const requestLine = lines.shift() || "";
+    const parts = requestLine.split(" ");
 
     if (requestLine.trim() === "") {
         throw new Error("Invalid HTTP request line");
     }
 
-    method = normalizeMethod(parts[0] || "GET");
-    rawPath = parts[1] || "/";
-    headers = parseHeaders(lines);
+    const method = normalizeMethod(parts[0] || "GET");
+    const rawPath = parts[1] || "/";
+    const headers = parseHeaders(lines);
 
     return {
         method: method,

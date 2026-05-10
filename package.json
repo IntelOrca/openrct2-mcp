@@ -8,6 +8,7 @@
   "scripts": {
     "build": "rollup --config rollup.config.js",
     "copy": "copy out\\mcp.js \"%HOMEDRIVE%%HOMEPATH%\\Documents\\OpenRCT2\\plugin\"",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "node --import tsx --test .\\test\\application.test.ts",
     "watch": "nodemon --watch ./src --ext js,ts --exec \"npm run build && npm run copy\""
   },
@@ -15,13 +16,17 @@
     "@openrct2/types": "^0.5.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
+    "eslint": "^9.39.4",
+    "globals": "^16.5.0",
     "nodemon": "^3.1.14",
     "rollup": "^4.60.3",
     "tslib": "^2.8.1",
     "tsx": "^4.20.6",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.59.2"
   }
 }

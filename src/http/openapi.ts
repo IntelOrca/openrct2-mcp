@@ -5,14 +5,14 @@ function quoteYaml(value: string): string {
 }
 
 export function generateOpenApiYaml(title: string, version: string, routes: RouteDefinition[]): string {
-    var lines = [
+    const lines = [
         "openapi: 3.1.0",
         "info:",
         "  title: " + quoteYaml(title),
         "  version: " + quoteYaml(version),
         "paths:"
     ];
-    var visibleRoutes = routes
+    const visibleRoutes = routes
         .filter(function (route) {
             return route.hideFromOpenApi !== true;
         })
@@ -32,18 +32,14 @@ export function generateOpenApiYaml(title: string, version: string, routes: Rout
             }
             return 1;
         });
-    var currentPath = "";
-    var i: number;
-    var route: RouteDefinition;
-    var responseDescription: string;
+    let currentPath = "";
 
     if (visibleRoutes.length === 0) {
         lines.push("  {}");
         return lines.join("\n");
     }
 
-    for (i = 0; i < visibleRoutes.length; i++) {
-        route = visibleRoutes[i];
+    for (const route of visibleRoutes) {
         if (route.path !== currentPath) {
             currentPath = route.path;
             lines.push("  " + quoteYaml(route.path) + ":");
@@ -64,7 +60,7 @@ export function generateOpenApiYaml(title: string, version: string, routes: Rout
             });
         }
 
-        responseDescription = route.responseDescription || "Successful response";
+        const responseDescription = route.responseDescription || "Successful response";
         lines.push("      responses:");
         lines.push("        '200':");
         lines.push("          description: " + quoteYaml(responseDescription));

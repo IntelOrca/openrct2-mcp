@@ -10,7 +10,7 @@ function parseJsonBody(response: { getBody(): string }): unknown {
 }
 
 test("parseHttpRequest parses method, headers, query parameters, and body", function () {
-    var request = parseHttpRequest(
+    const request = parseHttpRequest(
         "POST /v1/date?format=json HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nX-Test: hello\r\n\r\n{\"ok\":true}"
     );
 
@@ -23,7 +23,7 @@ test("parseHttpRequest parses method, headers, query parameters, and body", func
 });
 
 test("HttpRouter applies path middleware and serializes object results", function () {
-    var router = new HttpRouter();
+    const router = new HttpRouter();
 
     router.use("/v1", function (_request, response, next) {
         response.setHeader("X-Trace", "enabled");
@@ -41,7 +41,7 @@ test("HttpRouter applies path middleware and serializes object results", functio
         }
     });
 
-    var response = router.handleRawRequest("GET /v1/ping HTTP/1.1\r\nX-Custom: abc\r\n\r\n");
+    const response = router.handleRawRequest("GET /v1/ping HTTP/1.1\r\nX-Custom: abc\r\n\r\n");
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.getHeader("x-trace"), "enabled");
@@ -49,7 +49,7 @@ test("HttpRouter applies path middleware and serializes object results", functio
 });
 
 test("HttpRouter returns 405 and Allow when a path exists for another method", function () {
-    var router = new HttpRouter();
+    const router = new HttpRouter();
 
     router.registerRoute({
         method: "GET",
@@ -61,7 +61,7 @@ test("HttpRouter returns 405 and Allow when a path exists for another method", f
         }
     });
 
-    var response = router.handleRawRequest("POST /v1/resource HTTP/1.1\r\n\r\n");
+    const response = router.handleRawRequest("POST /v1/resource HTTP/1.1\r\n\r\n");
 
     assert.equal(response.statusCode, 405);
     assert.equal(response.getHeader("allow"), "GET");
@@ -69,7 +69,7 @@ test("HttpRouter returns 405 and Allow when a path exists for another method", f
 });
 
 test("createApplication provides the automatic /v1 index and date controller response", function () {
-    var originalDate = (globalThis as typeof globalThis & { date?: unknown }).date;
+    const originalDate = (globalThis as typeof globalThis & { date?: unknown }).date;
     (globalThis as typeof globalThis & { date?: unknown }).date = {
         ticksElapsed: 123,
         monthsElapsed: 4,
@@ -81,9 +81,9 @@ test("createApplication provides the automatic /v1 index and date controller res
     };
 
     try {
-        var app = createApplication();
-        var indexResponse = app.handleRawRequest("GET /v1 HTTP/1.1\r\n\r\n");
-        var dateResponse = app.handleRawRequest("GET /v1/date HTTP/1.1\r\n\r\n");
+        const app = createApplication();
+        const indexResponse = app.handleRawRequest("GET /v1 HTTP/1.1\r\n\r\n");
+        const dateResponse = app.handleRawRequest("GET /v1/date HTTP/1.1\r\n\r\n");
 
         assert.deepEqual(parseJsonBody(indexResponse), {
             controllers: [
@@ -114,9 +114,9 @@ test("createApplication provides the automatic /v1 index and date controller res
 });
 
 test("createApplication preserves the /v1/eval controller", function () {
-    var app = createApplication();
-    var evalResponse = app.handleRawRequest("GET /v1/eval?q=1%2B1 HTTP/1.1\r\n\r\n");
-    var missingQueryResponse = app.handleRawRequest("GET /v1/eval HTTP/1.1\r\n\r\n");
+    const app = createApplication();
+    const evalResponse = app.handleRawRequest("GET /v1/eval?q=1%2B1 HTTP/1.1\r\n\r\n");
+    const missingQueryResponse = app.handleRawRequest("GET /v1/eval HTTP/1.1\r\n\r\n");
 
     assert.deepEqual(parseJsonBody(evalResponse), {
         result: 2
@@ -128,9 +128,9 @@ test("createApplication preserves the /v1/eval controller", function () {
 });
 
 test("createApplication exposes generated OpenAPI YAML and the /swagger page", function () {
-    var app = createApplication();
-    var openApiResponse = app.handleRawRequest("GET /openapi.yaml HTTP/1.1\r\n\r\n");
-    var swaggerResponse = app.handleRawRequest("GET /swagger HTTP/1.1\r\n\r\n");
+    const app = createApplication();
+    const openApiResponse = app.handleRawRequest("GET /openapi.yaml HTTP/1.1\r\n\r\n");
+    const swaggerResponse = app.handleRawRequest("GET /swagger HTTP/1.1\r\n\r\n");
 
     assert.match(app.getOpenApiYaml(), /"\/v1\/date":/);
     assert.match(openApiResponse.getBody(), /openapi: 3.1.0/);
@@ -141,9 +141,9 @@ test("createApplication exposes generated OpenAPI YAML and the /swagger page", f
 });
 
 test("createApplication logs each request", function () {
-    var app = createApplication();
-    var originalLog = console.log;
-    var messages: string[] = [];
+    const app = createApplication();
+    const originalLog = console.log;
+    const messages: string[] = [];
 
     console.log = function (message?: unknown): void {
         messages.push(String(message));

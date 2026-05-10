@@ -9,27 +9,27 @@ function createInternalServerErrorResponse(error: unknown): HttpResponse {
 }
 
 function main() {
-    var app = createApplication();
+    const app = createApplication();
 
     console.log('Starting API server on port 8080');
 
     try {
-        var server = network.createListener();
+        const server = network.createListener();
         server.on('connection', function (socket) {
             socket.setNoDelay(true);
-            var responded = false;
+            let responded = false;
 
             socket.on('data', function (data) {
-                var response: HttpResponse;
-
                 if (responded) return;
                 responded = true;
 
-                try {
-                    response = app.handleRawRequest((typeof data === 'string') ? data : String(data));
-                } catch (error) {
-                    response = createInternalServerErrorResponse(error);
-                }
+                const response = (() => {
+                    try {
+                        return app.handleRawRequest((typeof data === 'string') ? data : String(data));
+                    } catch (error) {
+                        return createInternalServerErrorResponse(error);
+                    }
+                })();
 
                 try { socket.end(response.toHttpString()); } catch (e) { console.log('Socket end error: ' + e); }
             });

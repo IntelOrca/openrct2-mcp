@@ -100,7 +100,7 @@ export class HttpRouter {
     }
 
     public handleRawRequest(rawRequest: string): HttpResponse {
-        var request: HttpRequest;
+        let request: HttpRequest;
 
         try {
             request = parseHttpRequest(rawRequest);
@@ -114,16 +114,14 @@ export class HttpRouter {
     }
 
     public handleRequest(request: HttpRequest): HttpResponse {
-        var response = new HttpResponse();
-        var route = this.findRoute(request.method, request.path);
-        var allowedMethods = this.findAllowedMethods(request.path);
-        var stack: Middleware[] = [];
-        var i: number;
-        var result: HandlerResult;
+        const response = new HttpResponse();
+        const route = this.findRoute(request.method, request.path);
+        const allowedMethods = this.findAllowedMethods(request.path);
+        const stack: Middleware[] = [];
 
-        for (i = 0; i < this.middlewares.length; i++) {
-            if (pathMatchesPrefix(request.path, this.middlewares[i].path)) {
-                stack.push(this.middlewares[i].handler);
+        for (const middleware of this.middlewares) {
+            if (pathMatchesPrefix(request.path, middleware.path)) {
+                stack.push(middleware.handler);
             }
         }
 
@@ -143,13 +141,13 @@ export class HttpRouter {
             return { error: "Not Found" };
         });
 
-        result = this.dispatch(stack, request, response, 0);
+        const result = this.dispatch(stack, request, response, 0);
         applyHandlerResult(response, result);
         return response;
     }
 
     private dispatch(stack: Middleware[], request: HttpRequest, response: HttpResponse, index: number): HandlerResult {
-        var middleware = stack[index];
+        const middleware = stack[index];
 
         if (typeof middleware === "undefined") {
             return;
@@ -159,17 +157,13 @@ export class HttpRouter {
     }
 
     private createNext(stack: Middleware[], request: HttpRequest, response: HttpResponse, index: number): () => HandlerResult {
-        var self = this;
-        return function (): HandlerResult {
-            return self.dispatch(stack, request, response, index + 1);
-        };
+        return () => this.dispatch(stack, request, response, index + 1);
     }
 
     private findRoute(method: HttpMethod, path: string): RouteDefinition | undefined {
-        var i: number;
-        for (i = 0; i < this.routes.length; i++) {
-            if (this.routes[i].method === method && this.routes[i].path === path) {
-                return this.routes[i];
+        for (const route of this.routes) {
+            if (route.method === method && route.path === path) {
+                return route;
             }
         }
 
@@ -177,14 +171,13 @@ export class HttpRouter {
     }
 
     private findAllowedMethods(path: string): HttpMethod[] {
-        var allowed: Record<string, boolean> = {};
-        var methods: HttpMethod[] = [];
-        var i: number;
+        const allowed: Record<string, boolean> = {};
+        const methods: HttpMethod[] = [];
 
-        for (i = 0; i < this.routes.length; i++) {
-            if (this.routes[i].path === path && !allowed[this.routes[i].method]) {
-                allowed[this.routes[i].method] = true;
-                methods.push(this.routes[i].method);
+        for (const route of this.routes) {
+            if (route.path === path && !allowed[route.method]) {
+                allowed[route.method] = true;
+                methods.push(route.method);
             }
         }
 

@@ -87,13 +87,6 @@ export class HttpResponse {
     }
 
     public toHttpString(): string {
-        var headerNames = Object.keys(this.headers);
-        var responseLines = [
-            "HTTP/1.1 " + this.statusCode + " " + getStatusText(this.statusCode)
-        ];
-        var i: number;
-        var headerName: string;
-
         if (typeof this.getHeader("connection") === "undefined") {
             this.setHeader("Connection", "close");
         }
@@ -102,9 +95,12 @@ export class HttpResponse {
             this.setHeader("Content-Length", String(getUtf8ByteLength(this.body)));
         }
 
-        headerNames = Object.keys(this.headers);
-        for (i = 0; i < headerNames.length; i++) {
-            headerName = headerNames[i];
+        const responseLines = [
+            "HTTP/1.1 " + this.statusCode + " " + getStatusText(this.statusCode)
+        ];
+        const headerNames = Object.keys(this.headers);
+
+        for (const headerName of headerNames) {
             responseLines.push(formatHeaderName(headerName) + ": " + this.headers[headerName]);
         }
 
