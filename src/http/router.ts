@@ -1,4 +1,5 @@
 import { parseHttpRequest } from "./request.js";
+import { matchRoutePath, normalizeRoutePath, pathMatchesPrefix } from "./path.js";
 import { HttpResponse } from "./response.js";
 import type { HandlerResult, HttpMethod, HttpRequest, Middleware, RouteDefinition } from "./types.js";
 
@@ -7,28 +8,9 @@ interface RegisteredMiddleware {
     handler: Middleware;
 }
 
-function normalizeRegistrationPath(path: string): string {
-    if (path === "") {
-        return "/";
-    }
-
-    if (path.charAt(0) !== "/") {
-        return "/" + path;
-    }
-
-    if (path.length > 1) {
-        return path.replace(/\/+$/, "");
-    }
-
-    return path;
-}
-
-function pathMatchesPrefix(requestPath: string, registeredPath: string): boolean {
-    if (registeredPath === "/") {
-        return true;
-    }
-
-    return requestPath === registeredPath || requestPath.indexOf(registeredPath + "/") === 0;
+interface MatchedRoute {
+    route: RouteDefinition;
+    params: Record<string, string>;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -73,7 +55,7 @@ export class HttpRouter {
         }
 
         this.middlewares.push({
-            path: normalizeRegistrationPath(path),
+            path: normalizeRoutePath(path),
             handler: handler
         });
         return this;
@@ -82,7 +64,7 @@ export class HttpRouter {
     public registerRoute(route: RouteDefinition): HttpRouter {
         this.routes.push({
             method: route.method,
-            path: normalizeRegistrationPath(route.path),
+            path: normalizeRoutePath(route.path),
             operationId: route.operationId,
             summary: route.summary,
             description: route.description,
@@ -115,7 +97,7 @@ export class HttpRouter {
 
     public handleRequest(request: HttpRequest): HttpResponse {
         const response = new HttpResponse();
-        const route = this.findRoute(request.method, request.path);
+        const routeMatch = this.findRoute(request.method, request.path);
         const allowedMethods = this.findAllowedMethods(request.path);
         const stack: Middleware[] = [];
 
@@ -126,8 +108,9 @@ export class HttpRouter {
         }
 
         stack.push(function (currentRequest, currentResponse) {
-            if (route) {
-                return route.handler(currentRequest, currentResponse);
+            if (routeMatch) {
+                currentRequest.params = routeMatch.params;
+                return routeMatch.route.handler(currentRequest, currentResponse);
             }
 
             if (allowedMethods.length > 0) {
@@ -160,10 +143,28 @@ export class HttpRouter {
         return () => this.dispatch(stack, request, response, index + 1);
     }
 
-    private findRoute(method: HttpMethod, path: string): RouteDefinition | undefined {
+    private findRoute(method: HttpMethod, path: string): MatchedRoute | undefined {
         for (const route of this.routes) {
             if (route.method === method && route.path === path) {
-                return route;
+                return {
+                    route: route,
+                    params: {}
+                };
+            }
+        }
+
+        for (const route of this.routes) {
+            if (route.method !== method) {
+                continue;
+            }
+
+            const params = matchRoutePath(route.path, path);
+
+            if (typeof params !== "undefined") {
+                return {
+                    route: route,
+                    params: params
+                };
             }
         }
 
@@ -175,7 +176,7 @@ export class HttpRouter {
         const methods: HttpMethod[] = [];
 
         for (const route of this.routes) {
-            if (route.path === path && !allowed[route.method]) {
+            if (typeof matchRoutePath(route.path, path) !== "undefined" && !allowed[route.method]) {
                 allowed[route.method] = true;
                 methods.push(route.method);
             }

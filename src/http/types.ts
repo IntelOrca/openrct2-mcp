@@ -9,6 +9,7 @@ export interface HttpRequest {
     httpVersion: string;
     headers: Record<string, string>;
     query: Record<string, string>;
+    params: Record<string, string>;
     body: string;
     getHeader(name: string): string | undefined;
 }

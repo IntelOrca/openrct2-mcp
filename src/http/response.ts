@@ -31,8 +31,8 @@ function formatHeaderName(name: string): string {
 
 export class HttpResponse {
     public statusCode: number;
-    private readonly headers: Record<string, string>;
-    private body: string;
+    public readonly headers: Record<string, string>;
+    public body: string;
 
     public constructor() {
         this.statusCode = 200;
@@ -46,12 +46,14 @@ export class HttpResponse {
     }
 
     public setHeader(name: string, value: string): HttpResponse {
-        this.headers[name.toLowerCase()] = value;
+        const existingHeaderName = this.findHeaderName(name);
+        this.headers[existingHeaderName || name] = value;
         return this;
     }
 
     public getHeader(name: string): string | undefined {
-        return this.headers[name.toLowerCase()];
+        const existingHeaderName = this.findHeaderName(name);
+        return typeof existingHeaderName === "undefined" ? undefined : this.headers[existingHeaderName];
     }
 
     public getHeaders(): Record<string, string> {
@@ -108,5 +110,17 @@ export class HttpResponse {
         responseLines.push(this.body);
 
         return responseLines.join("\r\n");
+    }
+
+    private findHeaderName(name: string): string | undefined {
+        const normalizedName = name.toLowerCase();
+
+        for (const headerName of Object.keys(this.headers)) {
+            if (headerName.toLowerCase() === normalizedName) {
+                return headerName;
+            }
+        }
+
+        return undefined;
     }
 }

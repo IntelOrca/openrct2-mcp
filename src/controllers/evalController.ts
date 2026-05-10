@@ -1,4 +1,5 @@
-import type { ControllerDefinition } from "./types.js";
+import { httpGet, httpPath } from "./decorators.js";
+import { HttpController, type ControllerContext } from "./types.js";
 
 function evaluateExpression(expression: string): unknown {
     try {
@@ -8,43 +9,34 @@ function evaluateExpression(expression: string): unknown {
     }
 }
 
-export function createEvalController(): ControllerDefinition {
-    return {
-        name: "eval",
-        basePath: "/v1/eval",
-        routes: [
-            {
-                method: "GET",
-                path: "/v1/eval",
-                operationId: "evaluateExpression",
-                summary: "Evaluate a JavaScript expression",
-                description: "Evaluates the q query parameter and returns the resulting value.",
-                responseDescription: "Evaluation result",
-                handler: function (request, response) {
-                    const expression = request.query.q;
-                    let result: unknown;
+@httpPath("/v1/eval")
+export class EvalController extends HttpController {
+    @httpGet("/", {
+        operationId: "evaluateExpression",
+        summary: "Evaluate a JavaScript expression",
+        description: "Evaluates the q query parameter and returns the resulting value.",
+        responseDescription: "Evaluation result"
+    })
+    public evaluateExpression(context: ControllerContext) {
+        const expression = this.request.query.q;
 
-                    if (typeof expression === "undefined") {
-                        response.setStatus(400);
-                        return {
-                            error: "Missing q parameter"
-                        };
-                    }
+        if (typeof expression === "undefined") {
+            this.response.statusCode = 400;
+            return {
+                error: "Missing q parameter"
+            };
+        }
 
-                    try {
-                        result = evaluateExpression(expression);
-                    } catch (error) {
-                        response.setStatus(400);
-                        return {
-                            error: String(error)
-                        };
-                    }
-
-                    return {
-                        result: result
-                    };
-                }
-            }
-        ]
-    };
+        try {
+            context.response.headers["X-Eval-Endpoint"] = "true";
+            return {
+                result: evaluateExpression(expression)
+            };
+        } catch (error) {
+            this.response.statusCode = 400;
+            return {
+                error: String(error)
+            };
+        }
+    }
 }

@@ -19,8 +19,18 @@ function getControllerMethods(controller: ControllerDefinition): string[] {
 }
 
 function createVersionIndex(controllers: ControllerDefinition[]): Record<string, unknown> {
+    const sortedControllers = controllers.slice(0).sort(function (left, right) {
+        if (left.name < right.name) {
+            return -1;
+        }
+        if (left.name > right.name) {
+            return 1;
+        }
+        return 0;
+    });
+
     return {
-        controllers: controllers.map(function (controller) {
+        controllers: sortedControllers.map(function (controller) {
             return {
                 name: controller.name,
                 path: controller.basePath,
@@ -70,10 +80,9 @@ export interface Application {
 
 export function createApplication(): Application {
     const router = new HttpRouter();
-    const controllers = getControllers();
+    const controllers = registerControllers(router, getControllers());
 
     router.use("/", createRequestLogger());
-    registerControllers(router, controllers);
 
     router.registerRoute({
         method: "GET",

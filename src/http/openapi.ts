@@ -1,4 +1,5 @@
 import type { RouteDefinition } from "./types.js";
+import { getRouteParameterNames, toOpenApiPath } from "./path.js";
 
 function quoteYaml(value: string): string {
     return JSON.stringify(value);
@@ -40,9 +41,11 @@ export function generateOpenApiYaml(title: string, version: string, routes: Rout
     }
 
     for (const route of visibleRoutes) {
-        if (route.path !== currentPath) {
-            currentPath = route.path;
-            lines.push("  " + quoteYaml(route.path) + ":");
+        const openApiPath = toOpenApiPath(route.path);
+
+        if (openApiPath !== currentPath) {
+            currentPath = openApiPath;
+            lines.push("  " + quoteYaml(openApiPath) + ":");
         }
 
         lines.push("    " + route.method.toLowerCase() + ":");
@@ -57,6 +60,18 @@ export function generateOpenApiYaml(title: string, version: string, routes: Rout
             lines.push("      tags:");
             route.tags.forEach(function (tag) {
                 lines.push("        - " + quoteYaml(tag));
+            });
+        }
+
+        const pathParameterNames = getRouteParameterNames(route.path);
+        if (pathParameterNames.length > 0) {
+            lines.push("      parameters:");
+            pathParameterNames.forEach(function (parameterName) {
+                lines.push("        - name: " + quoteYaml(parameterName));
+                lines.push("          in: \"path\"");
+                lines.push("          required: true");
+                lines.push("          schema:");
+                lines.push("            type: string");
             });
         }
 

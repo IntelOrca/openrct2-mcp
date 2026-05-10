@@ -101,6 +101,7 @@ export function parseHttpRequest(rawRequest: string): HttpRequest {
         httpVersion: parts[2] || "HTTP/1.1",
         headers: headers,
         query: parseQueryParameters(rawPath),
+        params: {},
         body: body,
         getHeader: function (name: string): string | undefined {
             return headers[name.toLowerCase()];
