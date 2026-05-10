@@ -12,6 +12,30 @@ function parseJsonBody(response: { getBody(): string }): unknown {
     return JSON.parse(response.getBody());
 }
 
+function createRawRequest(method: string, path: string, headers: Record<string, string>, body?: string): string {
+    const headerLines = Object.keys(headers).map(function (name) {
+        return name + ": " + headers[name];
+    });
+    const requestLines = [method + " " + path + " HTTP/1.1"].concat(headerLines);
+
+    return requestLines.join("\r\n") + "\r\n\r\n" + (body || "");
+}
+
+function createMcpHeaders(extraHeaders?: Record<string, string>): Record<string, string> {
+    const headers: Record<string, string> = {
+        Accept: "application/json, text/event-stream",
+        "Content-Type": "application/json"
+    };
+
+    if (typeof extraHeaders !== "undefined") {
+        Object.keys(extraHeaders).forEach(function (name) {
+            headers[name] = extraHeaders[name];
+        });
+    }
+
+    return headers;
+}
+
 let testControllerInstanceCount = 0;
 
 class TestController extends HttpController {
@@ -289,6 +313,311 @@ test("createApplication exposes generated OpenAPI YAML and the /swagger page", f
     assert.equal(swaggerResponse.getHeader("content-type"), "text/html; charset=utf-8");
     assert.match(swaggerResponse.getBody(), /SwaggerUIBundle/);
     assert.match(swaggerResponse.getBody(), /\/openapi\.yaml/);
+});
+
+test("createApplication only allows POST for /mcp", function () {
+    const app = createApplication();
+    const response = app.handleRawRequest("GET /mcp HTTP/1.1\r\n\r\n");
+
+    assert.equal(response.statusCode, 405);
+    assert.equal(response.getHeader("allow"), "POST");
+    assert.deepEqual(parseJsonBody(response), { error: "Method Not Allowed" });
+});
+
+test("createApplication implements the MCP initialize, tools/list, tools/call, and ping flow", function () {
+    const app = createApplication();
+    const originalDate = (globalThis as typeof globalThis & { date?: unknown }).date;
+    const originalPark = (globalThis as typeof globalThis & { park?: unknown }).park;
+    const originalContext = (globalThis as typeof globalThis & { context?: unknown }).context;
+    const originalUi = (globalThis as typeof globalThis & { ui?: unknown }).ui;
+    const uiCalls: Array<{ title: string; message: string }> = [];
+    (globalThis as typeof globalThis & { date?: unknown }).date = {
+        day: 10,
+        month: 11,
+        year: 12,
+        monthsElapsed: 131
+    };
+    (globalThis as typeof globalThis & { park?: unknown }).park = {
+        name: "Mega Park",
+        guests: 1234,
+        rating: 999,
+        cash: 45678,
+        bankLoan: 2000,
+        companyValue: 77777,
+        value: 55555,
+        entranceFee: 25
+    };
+    (globalThis as typeof globalThis & { context?: unknown }).context = {
+        formatString: function (_format: string, day: number, monthsElapsed: number) {
+            return day + " / " + monthsElapsed;
+        }
+    };
+    (globalThis as typeof globalThis & { ui?: unknown }).ui = {
+        showError: function (title: string, message: string) {
+            uiCalls.push({
+                title: title,
+                message: message
+            });
+        }
+    };
+
+    try {
+        const initializeResponse = app.handleRawRequest(createRawRequest(
+            "POST",
+            "/mcp",
+            createMcpHeaders(),
+            JSON.stringify({
+                jsonrpc: "2.0",
+                id: 1,
+                method: "initialize",
+                params: {
+                    protocolVersion: "2025-11-25",
+                    capabilities: {},
+                    clientInfo: {
+                        name: "test-client",
+                        version: "1.0.0"
+                    }
+                }
+            })
+        ));
+        const initializeBody = parseJsonBody(initializeResponse) as {
+            result: {
+                protocolVersion: string;
+                capabilities: {
+                    tools: Record<string, never>;
+                };
+                serverInfo: {
+                    name: string;
+                };
+            };
+        };
+        const sessionId = initializeResponse.getHeader("mcp-session-id");
+
+        assert.equal(initializeResponse.statusCode, 200);
+        assert.equal(initializeBody.result.protocolVersion, "2025-11-25");
+        assert.equal(initializeBody.result.serverInfo.name, "openrct2-mcp");
+        assert.deepEqual(initializeBody.result.capabilities.tools, {});
+        assert.equal(typeof sessionId, "string");
+
+        const sessionHeaders = createMcpHeaders({
+            "MCP-Session-Id": String(sessionId),
+            "MCP-Protocol-Version": "2025-11-25"
+        });
+        const initializedResponse = app.handleRawRequest(createRawRequest(
+            "POST",
+            "/mcp",
+            sessionHeaders,
+            JSON.stringify({
+                jsonrpc: "2.0",
+                method: "notifications/initialized"
+            })
+        ));
+
+        assert.equal(initializedResponse.statusCode, 202);
+        assert.equal(initializedResponse.getBody(), "");
+
+        const listResponse = app.handleRawRequest(createRawRequest(
+            "POST",
+            "/mcp",
+            sessionHeaders,
+            JSON.stringify({
+                jsonrpc: "2.0",
+                id: 2,
+                method: "tools/list"
+            })
+        ));
+        const listBody = parseJsonBody(listResponse) as {
+            result: {
+                tools: Array<{
+                    name: string;
+                    title?: string;
+                    inputSchema: {
+                        type: string;
+                        additionalProperties: boolean;
+                        properties?: Record<string, unknown>;
+                        required?: string[];
+                    };
+                    outputSchema?: {
+                        type: string;
+                        required: string[];
+                    };
+                    annotations?: {
+                        readOnlyHint: boolean;
+                    };
+                }>;
+            };
+        };
+
+        assert.equal(listResponse.statusCode, 200);
+        assert.equal(listBody.result.tools.length, 3);
+        assert.equal(listBody.result.tools[0].name, "get_date");
+        assert.equal(listBody.result.tools[0].title, "Get the current date");
+        assert.equal(listBody.result.tools[0].inputSchema.type, "object");
+        assert.equal(listBody.result.tools[0].inputSchema.additionalProperties, false);
+        assert.equal(typeof listBody.result.tools[0].outputSchema, "undefined");
+        assert.equal(listBody.result.tools[0].annotations?.readOnlyHint, true);
+        assert.equal(listBody.result.tools[1].name, "get_park_info");
+        assert.equal(listBody.result.tools[1].outputSchema?.type, "object");
+        assert.equal(listBody.result.tools[2].name, "show_error");
+        assert.deepEqual(listBody.result.tools[2].inputSchema, {
+            type: "object",
+            properties: {
+                title: { type: "string" },
+                message: { type: "string" }
+            },
+            required: ["title", "message"],
+            additionalProperties: false
+        });
+
+        const callResponse = app.handleRawRequest(createRawRequest(
+            "POST",
+            "/mcp",
+            sessionHeaders,
+            JSON.stringify({
+                jsonrpc: "2.0",
+                id: 3,
+                method: "tools/call",
+                params: {
+                    name: "get_date",
+                    arguments: {}
+                }
+            })
+        ));
+        const callBody = parseJsonBody(callResponse) as {
+            result: {
+                content: Array<{
+                    type: string;
+                    text: string;
+                }>;
+                structuredContent: Record<string, string | number>;
+            };
+        };
+
+        assert.equal(callResponse.statusCode, 200);
+        assert.equal(callBody.result.content[0].type, "text");
+        assert.equal(callBody.result.content[0].text, JSON.stringify(callBody.result.structuredContent));
+        assert.deepEqual(callBody.result.structuredContent, {
+            day: 10,
+            month: 11,
+            year: 12,
+            formatted: "10 / 131"
+        });
+
+        const parkInfoResponse = app.handleRawRequest(createRawRequest(
+            "POST",
+            "/mcp",
+            sessionHeaders,
+            JSON.stringify({
+                jsonrpc: "2.0",
+                id: 4,
+                method: "tools/call",
+                params: {
+                    name: "get_park_info",
+                    arguments: {}
+                }
+            })
+        ));
+        const parkInfoBody = parseJsonBody(parkInfoResponse) as {
+            result: {
+                structuredContent: Record<string, string | number>;
+            };
+        };
+
+        assert.deepEqual(parkInfoBody.result.structuredContent, {
+            name: "Mega Park",
+            numGuests: 1234,
+            rating: 999,
+            cash: 45678,
+            bankLoan: 2000,
+            companyValue: 77777,
+            parkValue: 55555,
+            entranceFee: 25
+        });
+
+        const showErrorResponse = app.handleRawRequest(createRawRequest(
+            "POST",
+            "/mcp",
+            sessionHeaders,
+            JSON.stringify({
+                jsonrpc: "2.0",
+                id: 5,
+                method: "tools/call",
+                params: {
+                    name: "show_error",
+                    arguments: {
+                        title: "Oops",
+                        message: "Something happened"
+                    }
+                }
+            })
+        ));
+        const showErrorBody = parseJsonBody(showErrorResponse) as {
+            result: {
+                structuredContent: Record<string, string | boolean>;
+            };
+        };
+
+        assert.deepEqual(showErrorBody.result.structuredContent, {
+            shown: true,
+            title: "Oops",
+            message: "Something happened"
+        });
+        assert.deepEqual(uiCalls, [{
+            title: "Oops",
+            message: "Something happened"
+        }]);
+
+        const invalidShowErrorResponse = app.handleRawRequest(createRawRequest(
+            "POST",
+            "/mcp",
+            sessionHeaders,
+            JSON.stringify({
+                jsonrpc: "2.0",
+                id: 6,
+                method: "tools/call",
+                params: {
+                    name: "show_error",
+                    arguments: {
+                        title: "Missing message"
+                    }
+                }
+            })
+        ));
+
+        assert.deepEqual(parseJsonBody(invalidShowErrorResponse), {
+            jsonrpc: "2.0",
+            id: 6,
+            result: {
+                content: [{
+                    type: "text",
+                    text: "Missing required property: message"
+                }],
+                isError: true
+            }
+        });
+
+        const pingResponse = app.handleRawRequest(createRawRequest(
+            "POST",
+            "/mcp",
+            sessionHeaders,
+            JSON.stringify({
+                jsonrpc: "2.0",
+                id: 7,
+                method: "ping"
+            })
+        ));
+
+        assert.deepEqual(parseJsonBody(pingResponse), {
+            jsonrpc: "2.0",
+            id: 7,
+            result: {}
+        });
+    } finally {
+        (globalThis as typeof globalThis & { date?: unknown }).date = originalDate;
+        (globalThis as typeof globalThis & { park?: unknown }).park = originalPark;
+        (globalThis as typeof globalThis & { context?: unknown }).context = originalContext;
+        (globalThis as typeof globalThis & { ui?: unknown }).ui = originalUi;
+    }
 });
 
 test("createApplication logs each request", function () {

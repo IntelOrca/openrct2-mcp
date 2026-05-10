@@ -15,15 +15,16 @@ class ApiApplication {
                     if (responded) return;
                     responded = true;
 
-                    const response = (() => {
-                        try {
-                            return app.handleRawRequest((typeof data === 'string') ? data : String(data));
-                        } catch (error) {
-                            return this.createInternalServerErrorResponse(error);
-                        }
-                    })();
+                    try {
+                        const result = app.handleSocketRequest((typeof data === 'string') ? data : String(data), socket);
 
-                    try { socket.end(response.toHttpString()); } catch (e) { console.log('Socket end error: ' + e); }
+                        if (!result.context.connection.hijacked) {
+                            socket.end(result.response.toHttpString());
+                        }
+                    } catch (error) {
+                        const response = this.createInternalServerErrorResponse(error);
+                        try { socket.end(response.toHttpString()); } catch (e) { console.log('Socket end error: ' + e); }
+                    }
                 });
 
                 socket.on('error', function (err) {

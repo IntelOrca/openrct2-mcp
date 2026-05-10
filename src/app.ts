@@ -1,8 +1,10 @@
 import type { ControllerDefinition } from "./controllers/index.js";
 import { getControllers, registerControllers } from "./controllers/index.js";
+import { createRequestContext } from "./http/connection.js";
 import { generateOpenApiYaml } from "./http/openapi.js";
 import { HttpRouter } from "./http/router.js";
-import type { Middleware } from "./http/types.js";
+import { McpServer } from "./mcp.js";
+import type { Middleware, RequestHandlingResult, SocketLike } from "./http/types.js";
 
 function getControllerMethods(controller: ControllerDefinition): string[] {
     const seen: Record<string, boolean> = {};
@@ -75,12 +77,14 @@ function createRequestLogger(): Middleware {
 
 export interface Application {
     handleRawRequest(rawRequest: string): ReturnType<HttpRouter["handleRawRequest"]>;
+    handleSocketRequest(rawRequest: string, socket: SocketLike): RequestHandlingResult;
     getOpenApiYaml(): string;
 }
 
 export function createApplication(): Application {
     const router = new HttpRouter();
     const controllers = registerControllers(router, getControllers());
+    const mcpServer = new McpServer();
 
     router.use("/", createRequestLogger());
 
@@ -149,9 +153,25 @@ export function createApplication(): Application {
         }
     });
 
+    router.registerRoute({
+        method: "POST",
+        path: "/mcp",
+        operationId: "mcp",
+        summary: "Handle MCP requests",
+        description: "Handles MCP Streamable HTTP POST requests for initialization, tool discovery, and tool invocation.",
+        responseDescription: "MCP response",
+        hideFromOpenApi: false,
+        handler: function (request, response) {
+            return mcpServer.handlePost(request, response);
+        }
+    });
+
     return {
         handleRawRequest: function (rawRequest) {
             return router.handleRawRequest(rawRequest);
+        },
+        handleSocketRequest: function (rawRequest, socket) {
+            return router.handleRawRequestWithContext(rawRequest, createRequestContext(socket));
         },
         getOpenApiYaml: function () {
             return generateOpenApiYaml("mcp test api", "1.0.0", router.getRoutes());

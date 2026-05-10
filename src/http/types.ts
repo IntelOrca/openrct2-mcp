@@ -14,6 +14,38 @@ export interface HttpRequest {
     getHeader(name: string): string | undefined;
 }
 
+export interface SocketLike {
+    write(data: string): boolean;
+    end(data?: string): SocketLike;
+    on(event: "close", callback: (hadError: boolean) => void): SocketLike;
+    on(event: "error", callback: (errorString: string) => void): SocketLike;
+    on(event: "data", callback: (data: string) => void): SocketLike;
+    off(event: "close", callback: (hadError: boolean) => void): SocketLike;
+    off(event: "error", callback: (errorString: string) => void): SocketLike;
+    off(event: "data", callback: (data: string) => void): SocketLike;
+}
+
+export interface SocketChannel {
+    send(data: string): boolean;
+    close(data?: string): void;
+    onData(callback: (data: string) => void): SocketChannel;
+    onClose(callback: (hadError: boolean) => void): SocketChannel;
+    onError(callback: (errorString: string) => void): SocketChannel;
+    offData(callback: (data: string) => void): SocketChannel;
+    offClose(callback: (hadError: boolean) => void): SocketChannel;
+    offError(callback: (errorString: string) => void): SocketChannel;
+}
+
+export interface RequestConnection {
+    readonly socket?: SocketLike;
+    readonly hijacked: boolean;
+    takeOver(): SocketChannel | undefined;
+}
+
+export interface RequestContext {
+    connection: RequestConnection;
+}
+
 export type HandlerResult =
     | HttpResponse
     | Record<string, unknown>
@@ -26,9 +58,14 @@ export type HandlerResult =
 
 export type NextFunction = () => HandlerResult;
 
-export type Middleware = (request: HttpRequest, response: HttpResponse, next: NextFunction) => HandlerResult;
+export type Middleware = (request: HttpRequest, response: HttpResponse, next: NextFunction, context: RequestContext) => HandlerResult;
 
-export type RouteHandler = (request: HttpRequest, response: HttpResponse) => HandlerResult;
+export type RouteHandler = (request: HttpRequest, response: HttpResponse, context: RequestContext) => HandlerResult;
+
+export interface RequestHandlingResult {
+    response: HttpResponse;
+    context: RequestContext;
+}
 
 export interface RouteDefinition {
     method: HttpMethod;

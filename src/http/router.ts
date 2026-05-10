@@ -1,7 +1,8 @@
+import { createRequestContext } from "./connection.js";
 import { parseHttpRequest } from "./request.js";
 import { matchRoutePath, normalizeRoutePath, pathMatchesPrefix } from "./path.js";
 import { HttpResponse } from "./response.js";
-import type { HandlerResult, HttpMethod, HttpRequest, Middleware, RouteDefinition } from "./types.js";
+import type { HandlerResult, HttpMethod, HttpRequest, Middleware, RequestContext, RequestHandlingResult, RouteDefinition } from "./types.js";
 
 interface RegisteredMiddleware {
     path: string;
@@ -82,20 +83,31 @@ export class HttpRouter {
     }
 
     public handleRawRequest(rawRequest: string): HttpResponse {
+        return this.handleRawRequestWithContext(rawRequest, createRequestContext()).response;
+    }
+
+    public handleRawRequestWithContext(rawRequest: string, context: RequestContext): RequestHandlingResult {
         let request: HttpRequest;
 
         try {
             request = parseHttpRequest(rawRequest);
         } catch (error) {
-            return new HttpResponse().setJson({
-                error: String(error)
-            }, 400);
+            return {
+                response: new HttpResponse().setJson({
+                    error: String(error)
+                }, 400),
+                context: context
+            };
         }
 
-        return this.handleRequest(request);
+        return this.handleRequestWithContext(request, context);
     }
 
     public handleRequest(request: HttpRequest): HttpResponse {
+        return this.handleRequestWithContext(request, createRequestContext()).response;
+    }
+
+    public handleRequestWithContext(request: HttpRequest, context: RequestContext): RequestHandlingResult {
         const response = new HttpResponse();
         const routeMatch = this.findRoute(request.method, request.path);
         const allowedMethods = this.findAllowedMethods(request.path);
@@ -107,10 +119,10 @@ export class HttpRouter {
             }
         }
 
-        stack.push(function (currentRequest, currentResponse) {
+        stack.push(function (currentRequest, currentResponse, _next, currentContext) {
             if (routeMatch) {
                 currentRequest.params = routeMatch.params;
-                return routeMatch.route.handler(currentRequest, currentResponse);
+                return routeMatch.route.handler(currentRequest, currentResponse, currentContext);
             }
 
             if (allowedMethods.length > 0) {
@@ -124,23 +136,28 @@ export class HttpRouter {
             return { error: "Not Found" };
         });
 
-        const result = this.dispatch(stack, request, response, 0);
-        applyHandlerResult(response, result);
-        return response;
+        const result = this.dispatch(stack, request, response, 0, context);
+        if (!context.connection.hijacked) {
+            applyHandlerResult(response, result);
+        }
+        return {
+            response: response,
+            context: context
+        };
     }
 
-    private dispatch(stack: Middleware[], request: HttpRequest, response: HttpResponse, index: number): HandlerResult {
+    private dispatch(stack: Middleware[], request: HttpRequest, response: HttpResponse, index: number, context: RequestContext): HandlerResult {
         const middleware = stack[index];
 
         if (typeof middleware === "undefined") {
             return;
         }
 
-        return middleware(request, response, this.createNext(stack, request, response, index));
+        return middleware(request, response, this.createNext(stack, request, response, index, context), context);
     }
 
-    private createNext(stack: Middleware[], request: HttpRequest, response: HttpResponse, index: number): () => HandlerResult {
-        return () => this.dispatch(stack, request, response, index + 1);
+    private createNext(stack: Middleware[], request: HttpRequest, response: HttpResponse, index: number, context: RequestContext): () => HandlerResult {
+        return () => this.dispatch(stack, request, response, index + 1, context);
     }
 
     private findRoute(method: HttpMethod, path: string): MatchedRoute | undefined {
