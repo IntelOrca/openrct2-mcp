@@ -2,9 +2,11 @@ import type { ControllerDefinition } from "./controllers/index.js";
 import { getControllers, registerControllers } from "./controllers/index.js";
 import { createRequestContext } from "./http/connection.js";
 import { generateOpenApiYaml } from "./http/openapi.js";
+import type { HttpResponse } from "./http/response.js";
 import { HttpRouter } from "./http/router.js";
-import { McpServer } from "./mcp.js";
 import type { Middleware, RequestHandlingResult, SocketLike } from "./http/types.js";
+import { McpServer } from "./mcp.js";
+import { embeddedStaticFiles } from "./embeddedStaticAssets.js";
 
 function getControllerMethods(controller: ControllerDefinition): string[] {
     const seen: Record<string, boolean> = {};
@@ -75,6 +77,31 @@ function createRequestLogger(): Middleware {
     };
 }
 
+function respondWithEmbeddedFile(path: string, response: HttpResponse): HttpResponse {
+    const file = embeddedStaticFiles[path];
+
+    if (typeof file === "undefined") {
+        return response.setText("Not Found", 404);
+    }
+
+    return response.setText(file.body, 200, file.contentType);
+}
+
+function registerEmbeddedStaticRoutes(router: HttpRouter): void {
+    Object.keys(embeddedStaticFiles).forEach(function (path) {
+        router.registerRoute({
+            method: "GET",
+            path: path,
+            operationId: "getStatic_" + path.replace(/[^a-zA-Z0-9]+/g, "_"),
+            summary: "Get an embedded static asset",
+            hideFromOpenApi: true,
+            handler: function (_request, response) {
+                return respondWithEmbeddedFile(path, response);
+            }
+        });
+    });
+}
+
 export interface Application {
     handleRawRequest(rawRequest: string): ReturnType<HttpRouter["handleRawRequest"]>;
     handleSocketRequest(rawRequest: string, socket: SocketLike): RequestHandlingResult;
@@ -87,27 +114,30 @@ export function createApplication(): Application {
     const mcpServer = new McpServer();
 
     router.use("/", createRequestLogger());
+    registerEmbeddedStaticRoutes(router);
 
     router.registerRoute({
         method: "GET",
         path: "/",
-        operationId: "getApiVersions",
-        summary: "List available API versions",
-        description: "Returns the available API versions and documentation endpoints.",
-        responseDescription: "Available API versions",
-        handler: function () {
-            return {
-                versions: [
-                    {
-                        version: "v1",
-                        path: "/v1"
-                    }
-                ],
-                documentation: {
-                    openApi: "/openapi.yaml",
-                    swagger: "/swagger"
-                }
-            };
+        operationId: "redirectToDashboard",
+        summary: "Redirect to the dashboard",
+        description: "Redirects the root path to the dashboard UI.",
+        hideFromOpenApi: true,
+        handler: function (_request, response) {
+            response.setStatus(302);
+            response.setHeader("Location", "/dashboard");
+            return response.setText("Redirecting to /dashboard");
+        }
+    });
+
+    router.registerRoute({
+        method: "GET",
+        path: "/dashboard",
+        operationId: "getDashboardPage",
+        summary: "Get the dashboard page",
+        hideFromOpenApi: true,
+        handler: function (_request, response) {
+            return respondWithEmbeddedFile("/static/dashboard.html", response);
         }
     });
 

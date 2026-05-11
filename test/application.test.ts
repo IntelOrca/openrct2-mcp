@@ -190,6 +190,7 @@ test("registerControllers uses decorated controller classes and creates a new in
 test("createApplication provides the automatic /v1 index and date controller response", function () {
     const originalDate = (globalThis as typeof globalThis & { date?: unknown }).date;
     const originalMap = (globalThis as typeof globalThis & { map?: unknown }).map;
+    const originalPark = (globalThis as typeof globalThis & { park?: unknown }).park;
     (globalThis as typeof globalThis & { date?: unknown }).date = {
         ticksElapsed: 123,
         monthsElapsed: 4,
@@ -229,11 +230,22 @@ test("createApplication provides the automatic /v1 index and date controller res
             return undefined;
         }
     };
+    (globalThis as typeof globalThis & { park?: unknown }).park = {
+        name: "Mega Park",
+        guests: 1234,
+        rating: 999,
+        cash: 45678,
+        bankLoan: 2000,
+        companyValue: 77777,
+        value: 55555,
+        entranceFee: 25
+    };
 
     try {
         const app = createApplication();
         const indexResponse = app.handleRawRequest("GET /v1 HTTP/1.1\r\n\r\n");
         const dateResponse = app.handleRawRequest("GET /v1/date HTTP/1.1\r\n\r\n");
+        const parkResponse = app.handleRawRequest("GET /v1/park HTTP/1.1\r\n\r\n");
 
         assert.deepEqual(parseJsonBody(indexResponse), {
             controllers: [
@@ -245,6 +257,11 @@ test("createApplication provides the automatic /v1 index and date controller res
                 {
                     name: "eval",
                     path: "/v1/eval",
+                    methods: ["GET"]
+                },
+                {
+                    name: "park",
+                    path: "/v1/park",
                     methods: ["GET"]
                 },
                 {
@@ -263,6 +280,16 @@ test("createApplication provides the automatic /v1 index and date controller res
             month: 8,
             year: 9
         });
+        assert.deepEqual(parseJsonBody(parkResponse), {
+            name: "Mega Park",
+            numGuests: 1234,
+            rating: 999,
+            cash: 45678,
+            bankLoan: 2000,
+            companyValue: 77777,
+            parkValue: 55555,
+            entranceFee: 25
+        });
         const ridesResponse = app.handleRawRequest("GET /v1/rides/21 HTTP/1.1\r\n\r\n");
         assert.deepEqual(parseJsonBody(ridesResponse), {
             object: "ride-21",
@@ -276,7 +303,28 @@ test("createApplication provides the automatic /v1 index and date controller res
     } finally {
         (globalThis as typeof globalThis & { date?: unknown }).date = originalDate;
         (globalThis as typeof globalThis & { map?: unknown }).map = originalMap;
+        (globalThis as typeof globalThis & { park?: unknown }).park = originalPark;
     }
+});
+
+test("createApplication redirects / to /dashboard and serves the dashboard page", function () {
+    const app = createApplication();
+    const redirectResponse = app.handleRawRequest("GET / HTTP/1.1\r\n\r\n");
+    const dashboardResponse = app.handleRawRequest("GET /dashboard HTTP/1.1\r\n\r\n");
+    const dashboardCssResponse = app.handleRawRequest("GET /static/dashboard.css HTTP/1.1\r\n\r\n");
+    const dashboardJsResponse = app.handleRawRequest("GET /static/dashboard.js HTTP/1.1\r\n\r\n");
+
+    assert.equal(redirectResponse.statusCode, 302);
+    assert.equal(redirectResponse.getHeader("location"), "/dashboard");
+    assert.equal(dashboardResponse.getHeader("content-type"), "text/html; charset=utf-8");
+    assert.equal(dashboardCssResponse.getHeader("content-type"), "text/css; charset=utf-8");
+    assert.equal(dashboardJsResponse.getHeader("content-type"), "text/javascript; charset=utf-8");
+    assert.match(dashboardResponse.getBody(), /\/static\/dashboard\.css/);
+    assert.match(dashboardResponse.getBody(), /\/static\/dashboard\.js/);
+    assert.match(dashboardCssResponse.getBody(), /overflow:\s*hidden/);
+    assert.match(dashboardJsResponse.getBody(), /ArrowUp/);
+    assert.match(dashboardJsResponse.getBody(), /event\.ctrlKey/);
+    assert.match(dashboardJsResponse.getBody(), /fetch\("\/v1\/eval\?q=" \+ encodeURIComponent\(command\)\)/);
 });
 
 test("createApplication preserves the /v1/eval controller", function () {

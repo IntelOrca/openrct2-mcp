@@ -1,5 +1,5 @@
-import { httpGet, httpPath } from "./decorators.js";
 import { getGameDateInfo } from "../gameDate.js";
+import { httpGet, httpPath } from "./decorators.js";
 import { HttpController } from "./types.js";
 
 @httpPath("/v1/date")

@@ -4,6 +4,8 @@ function getUtf8ByteLength(value: string): number {
 
 function getStatusText(statusCode: number): string {
     switch (statusCode) {
+        case 302:
+            return "Found";
         case 200:
             return "OK";
         case 201:

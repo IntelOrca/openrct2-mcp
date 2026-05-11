@@ -1,7 +1,8 @@
 import type { HttpRouter } from "../http/router.js";
-import { DateController } from "./dateController.js";
+import { DateController } from "./date.js";
 import { getControllerDefinition } from "./decorators.js";
-import { EvalController } from "./evalController.js";
+import { EvalController } from "./eval.js";
+import { ParkController } from "./park.js";
 import { RidesController } from "./rides.js";
 import type { ControllerAction, ControllerClass, ControllerContext, ControllerDefinition } from "./types.js";
 
@@ -9,6 +10,7 @@ export function getControllers(): ControllerClass[] {
     return [
         DateController,
         EvalController,
+        ParkController,
         RidesController
     ];
 }

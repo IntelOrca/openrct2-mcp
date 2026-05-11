@@ -5,7 +5,7 @@
 ## Architecture
 
 - `src/index.ts` boots the OpenRCT2 listener and forwards raw socket data into the application layer.
-- `src/app.ts` composes middleware, decorator-registered controllers, automatic index routes, and generated documentation routes.
+- `src/app.ts` composes middleware, decorator-registered controllers, embedded static routes, automatic index routes, and generated documentation routes.
 - `src/http/` contains the HTTP core:
   - `request.ts` parses raw HTTP requests into a structured request object with normalized paths, query parameters, and header lookup.
   - `response.ts` builds HTTP responses with status codes, headers, and body serialization. Controllers can use `response.headers` directly as an object.
@@ -18,6 +18,7 @@
   - Each controller class declares its base path once and exposes one instance method per endpoint.
 - `src/mcp.ts` implements a minimal MCP 2025-11-25 Streamable HTTP endpoint for initialization, ping, `tools/list`, and `tools/call`.
 - `src/tools/` contains decorator-registered MCP tool classes that are exposed automatically by the MCP server.
+- `static/` contains dashboard assets that Rollup embeds into the plugin bundle and exposes through HTTP routes.
 - `test/` contains Node-based unit tests for the environment-agnostic application and HTTP modules.
 
 ## Request flow
@@ -34,9 +35,12 @@
 
 ## Endpoints
 
-- `GET /` returns the available API versions and documentation links.
+- `GET /` redirects to `/dashboard`.
+- `GET /dashboard` returns a dark, card-based live dashboard with park info and an eval terminal.
+- `GET /static/...` returns embedded dashboard static assets from the plugin bundle.
 - `GET /v1` returns an automatic index of registered v1 controllers.
 - `GET /v1/date` returns the current in-game date values.
+- `GET /v1/park` returns the current park information.
 - `GET /v1/eval?q=...` preserves the prototype evaluation endpoint.
 - `GET /v1/rides/:id` looks up a ride by URL parameter.
 - `POST /mcp` implements a minimal MCP endpoint with `initialize`, `notifications/initialized`, `ping`, `tools/list`, and `tools/call`.

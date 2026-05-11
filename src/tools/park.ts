@@ -1,4 +1,5 @@
 import { mcpTool, mcpToolController } from "./decorators.js";
+import { getParkInfo } from "../parkInfo.js";
 
 @mcpToolController
 export class ParkTools {
@@ -37,15 +38,6 @@ export class ParkTools {
         }
     })
     public getParkInfo() {
-        return {
-            name: park.name,
-            numGuests: park.guests,
-            rating: park.rating,
-            cash: park.cash,
-            bankLoan: park.bankLoan,
-            companyValue: park.companyValue,
-            parkValue: park.value,
-            entranceFee: park.entranceFee
-        };
+        return getParkInfo();
     }
 }
